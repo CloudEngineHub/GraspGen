@@ -55,6 +55,8 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 
 ## Release News
 
+- \[10/28/2025\] Add feature of filtering out colliding grasps based on scene point cloud.
+
 - \[09/30/2025\] Isaac-Lab based grasp data generation released as [GraspDataGen](https://github.com/NVlabs/GraspDataGen) package (Note: [Data gen for suction grippers is in this repo](grasp_gen/dataset/suction.py))
 
 - \[07/16/2025\] Initial code release! Version `1.0.0`
@@ -67,7 +69,8 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 ## Future Features on the roadmap
 
 - ~~Data generation repo for antipodal grippers based on [Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/index.html) (Note: [Data gen for suction grippers already released](grasp_gen/dataset/suction.py))~~
-- Finetuning with real data
+- ~~Collision-filtering example~~
+- ~~Finetuning with real data**[Not planned anymore, lack of time]**~~
 - Infering grasp width based on raycasting
 - PTV3 backbone does not (yet) run on Cuda 12.8 due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved.
 
@@ -80,17 +83,31 @@ git clone https://github.com/NVlabs/GraspGen.git && cd GraspGen
 bash docker/build.sh # This will take a while
 ```
 
-### Installation with pip
-This is best done within a conda or python virtual environment. Ensure that cuda and pytorch is already installed.
+### Installation with pip inside Conda/Python virtualenv
+**[Optional]** If you do not already have a conda env, first create one:
+```bash
+conda create -n GraspGen python=3.10 && conda activate GraspGen
+```
+**[Optional]** If you do not already have pytorch installed:
+```bash
+pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
+```
+Install with pip:
 ```bash
 # Clone repo and install
-git clone https://github.com/NVlabs/GraspGen.git && cd GraspGen
-pip install -e . # Install Repo
+git clone https://github.com/NVlabs/GraspGen.git
+cd GraspGen && pip install -e .
 
-cd pointnet2 && pip install -e . # Install PointNet dependency
+# Install PointNet dependency
+cd pointnet2_ops && pip install --no-build-isolation .
 
-# Install other dependencies; This needs to be done in two lines for some reason =)
-pip install pyrender && pip install PyOpenGL==3.1.5 transformers  pyrender diffusers==0.11.1 timm huggingface-hub==0.25.2 scene-synthesizer[recommend]
+# Install other dependencies
+pip install pyrender && pip install PyOpenGL==3.1.5 transformers tensordict pyrender diffusers==0.11.1 timm huggingface-hub==0.25.2 scene-synthesizer[recommend]
+```
+
+NOTE: When compiling `pointnet2_ops`, if you are facing issues such as finding CUDA runtime headers or missing C++ compiler, try to manually set the following before installing:
+```bash
+export CC=/usr/bin/g++ && export CXX=/usr/bin/g++ && export CUDAHOSTCXX=/usr/bin/g++ && export TORCH_CUDA_ARCH_LIST="8.6"
 ```
 ## Download Checkpoints
 
@@ -113,12 +130,6 @@ We have added scripts for visualizing grasp predictions on real world point clou
 bash docker/run.sh <path_to_graspgen_code> --models <path_to_models_repo>
 ```
 
-### Predicting grasps for objects from scene point clouds
-```bash
-cd /code/ && python scripts/demo_scene_pc.py --sample_data_dir /models/sample_data/real_scene_pc --gripper_config /models/checkpoints/graspgen_robotiq_2f_140.yml
-```
-<img src="fig/pc/scene1.png" width="400" height="300" title="scenepc1"> <img src="fig/pc/scene2.png" width="400" height="300" title="scenepc2">
-
 ### Predicting grasps for segmented object point clouds
 
 ```bash
@@ -131,6 +142,22 @@ cd /code/ && python scripts/demo_object_pc.py --sample_data_dir /models/sample_d
 cd /code/ && python scripts/demo_object_mesh.py --mesh_file /models/sample_data/meshes/box.obj --mesh_scale 1.0 --gripper_config /models/checkpoints/graspgen_robotiq_2f_140.yml
 ```
 <img src="fig/meshes/1.png" width="240" height="200" title="objpc1"> <img src="fig/meshes/2.png" width="240" height="200" title="objpc2"> <img src="fig/meshes/3.png" width="240" height="200" title="objpc3">
+
+### **[Advanced]** Predicting grasps for objects from scene point clouds
+```bash
+cd /code/ && python scripts/demo_scene_pc.py --sample_data_dir /models/sample_data/real_scene_pc --gripper_config /models/checkpoints/graspgen_robotiq_2f_140.yml
+```
+<img src="fig/pc/scene1.png" width="400" height="300" title="scenepc1"> <img src="fig/pc/scene2.png" width="400" height="300" title="scenepc2">
+
+### **[Advanced]** Predicting grasps for objects from scene point clouds, with collision checking
+If you would like to filter the inferred grasps based on collisions, use the `--filter_collisions` flag. This uses a simple point cloud based collision checker. On the real robot, we suggest using [NVBlox](https://github.com/NVlabs/nvblox_torch). The grasp is in collision if it is <span style="color:red">**red**</span>, and <span style="color:green">**green**</span> if collision free.
+```bash
+cd /code/ && python scripts/demo_scene_pc.py --filter_collisions --sample_data_dir /models/sample_data/real_scene_pc --gripper_config /models/checkpoints/graspgen_franka_panda.yml
+```
+<img src="fig/pc/collision1.png" width="400" height="300" title="collision1"> <img src="fig/pc/collision2.png" width="400" height="300" title="collision2"> <img src="fig/pc/collision3.png" width="400" height="300" title="collision3"> <img src="fig/pc/collision4.png" width="400" height="300" title="collision4"> <img src="fig/pc/collision5.png" width="400" height="300" title="collision5">
+
+<!-- An example of a grasp that is colliding (left) vs collision-free (right) is show below.
+<!-- <img src="fig/pc/collision4.png" width="400" height="300" title="collision4"> <img src="fig/pc/collision5.png" width="400" height="300" title="collision5"> -->
 
 <small>Note: At the time of release of this repo, the suction checkpoint was not trained with on-generator training, hence may not output the best grasp scores.</small>
 
