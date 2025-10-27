@@ -150,7 +150,7 @@ cd /code/ && python scripts/demo_scene_pc.py --sample_data_dir /models/sample_da
 <img src="fig/pc/scene1.png" width="400" height="300" title="scenepc1"> <img src="fig/pc/scene2.png" width="400" height="300" title="scenepc2">
 
 ### **[Advanced]** Predicting grasps for objects from scene point clouds, with collision checking
-If you would like to filter the inferred grasps based on collisions, use the `--filter_collisions` flag. This uses a simple point cloud based collision checker. On the real robot, we suggest using [NVBlox](https://github.com/NVlabs/nvblox_torch). The grasp is in collision if it is <span style="color:red">**red**</span>, and <span style="color:green">**green**</span> if collision free.
+If you would like to filter the inferred grasps based on collisions, use the `--filter_collisions` flag. This uses a simple point cloud based collision checker. On the real robot, we suggest using [NVBlox](https://github.com/NVlabs/nvblox_torch). The grasp is in collision if it is <span style="color:red">**red**</span>, and <span style="color:green">**green**</span> if collision free. See `scripts/demo_collision_free_grasps.py` if you want to pass in your own scene using the depth and segmentation image as commandline arguments.
 ```bash
 cd /code/ && python scripts/demo_scene_pc.py --filter_collisions --sample_data_dir /models/sample_data/real_scene_pc --gripper_config /models/checkpoints/graspgen_franka_panda.yml
 ```

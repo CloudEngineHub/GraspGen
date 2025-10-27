@@ -28,7 +28,10 @@ from grasp_gen.utils.meshcat_utils import (
     visualize_mesh,
     visualize_pointcloud,
 )
-from grasp_gen.utils.point_cloud_utils import point_cloud_outlier_removal_with_color, filter_colliding_grasps
+from grasp_gen.utils.point_cloud_utils import (
+    point_cloud_outlier_removal_with_color,
+    filter_colliding_grasps,
+)
 from grasp_gen.robot import get_gripper_info
 
 
@@ -36,15 +39,17 @@ def process_grasps_for_visualization(pc, grasps, grasp_conf, pc_colors=None):
     """Process grasps and point cloud for visualization by centering them."""
     scores = get_color_from_score(grasp_conf, use_255_scale=True)
     print(f"Scores with min {grasp_conf.min():.3f} and max {grasp_conf.max():.3f}")
-    
+
     # Ensure grasps have correct homogeneous coordinate
     grasps[:, 3, 3] = 1
-    
+
     # Center point cloud and grasps
     T_subtract_pc_mean = tra.translation_matrix(-pc.mean(axis=0))
     pc_centered = tra.transform_points(pc, T_subtract_pc_mean)
-    grasps_centered = np.array([T_subtract_pc_mean @ np.array(g) for g in grasps.tolist()])
-    
+    grasps_centered = np.array(
+        [T_subtract_pc_mean @ np.array(g) for g in grasps.tolist()]
+    )
+
     return pc_centered, grasps_centered, scores, T_subtract_pc_mean
 
 
@@ -137,7 +142,9 @@ if __name__ == "__main__":
         gripper_info = get_gripper_info(gripper_name)
         gripper_collision_mesh = gripper_info.collision_mesh
         print(f"Using gripper: {gripper_name}")
-        print(f"Gripper collision mesh has {len(gripper_collision_mesh.vertices)} vertices")
+        print(
+            f"Gripper collision mesh has {len(gripper_collision_mesh.vertices)} vertices"
+        )
 
     # Initialize GraspGenSampler once
     grasp_sampler = GraspGenSampler(grasp_cfg)
@@ -178,8 +185,10 @@ if __name__ == "__main__":
 
         visualize_pointcloud(vis, "pc_scene", xyz_scene, xyz_scene_color, size=0.0025)
 
-        obj_pc, pc_removed, obj_pc_color, obj_pc_color_removed = point_cloud_outlier_removal_with_color(
-            torch.from_numpy(obj_pc), torch.from_numpy(obj_pc_color)
+        obj_pc, pc_removed, obj_pc_color, obj_pc_color_removed = (
+            point_cloud_outlier_removal_with_color(
+                torch.from_numpy(obj_pc), torch.from_numpy(obj_pc_color)
+            )
         )
         obj_pc = obj_pc.cpu().numpy()
         pc_removed = pc_removed.cpu().numpy()
@@ -200,56 +209,68 @@ if __name__ == "__main__":
             grasp_conf = grasp_conf.cpu().numpy()
             grasps = grasps.cpu().numpy()
             grasps[:, 3, 3] = 1
-            
+
             # Process grasps for visualization (centering)
-            obj_pc_centered, grasps_centered, scores, T_center = process_grasps_for_visualization(
-                obj_pc, grasps, grasp_conf, obj_pc_color
+            obj_pc_centered, grasps_centered, scores, T_center = (
+                process_grasps_for_visualization(
+                    obj_pc, grasps, grasp_conf, obj_pc_color
+                )
             )
-            
+
             # Center scene point cloud using same transformation
             xyz_scene_centered = tra.transform_points(xyz_scene, T_center)
-            
+
             # Apply collision filtering if requested
             collision_free_mask = None
             collision_free_grasps = grasps_centered
             collision_free_scores = scores
             colliding_grasps = None
-            
+
             if args.filter_collisions:
                 print("Applying collision filtering...")
                 collision_start = time.time()
-                
+
                 # Downsample scene point cloud for faster collision checking
                 if len(xyz_scene_centered) > args.max_scene_points:
-                    indices = np.random.choice(len(xyz_scene_centered), args.max_scene_points, replace=False)
+                    indices = np.random.choice(
+                        len(xyz_scene_centered), args.max_scene_points, replace=False
+                    )
                     xyz_scene_downsampled = xyz_scene_centered[indices]
-                    print(f"Downsampled scene point cloud from {len(xyz_scene_centered)} to {len(xyz_scene_downsampled)} points")
+                    print(
+                        f"Downsampled scene point cloud from {len(xyz_scene_centered)} to {len(xyz_scene_downsampled)} points"
+                    )
                 else:
                     xyz_scene_downsampled = xyz_scene_centered
-                    print(f"Scene point cloud has {len(xyz_scene_centered)} points (no downsampling needed)")
-                
+                    print(
+                        f"Scene point cloud has {len(xyz_scene_centered)} points (no downsampling needed)"
+                    )
+
                 # Filter collision grasps
                 collision_free_mask = filter_colliding_grasps(
                     scene_pc=xyz_scene_downsampled,
                     grasp_poses=grasps_centered,
                     gripper_collision_mesh=gripper_collision_mesh,
-                    collision_threshold=args.collision_threshold
+                    collision_threshold=args.collision_threshold,
                 )
-                
+
                 collision_time = time.time() - collision_start
                 print(f"Collision detection took: {collision_time:.2f} seconds")
-                
+
                 # Separate collision-free and colliding grasps
                 collision_free_grasps = grasps_centered[collision_free_mask]
                 colliding_grasps = grasps_centered[~collision_free_mask]
                 collision_free_scores = scores[collision_free_mask]
-                
-                print(f"Found {len(collision_free_grasps)}/{len(grasps_centered)} collision-free grasps")
+
+                print(
+                    f"Found {len(collision_free_grasps)}/{len(grasps_centered)} collision-free grasps"
+                )
 
             # Visualize collision-free grasps
-            grasps_to_visualize = collision_free_grasps if args.filter_collisions else grasps_centered
+            grasps_to_visualize = (
+                collision_free_grasps if args.filter_collisions else grasps_centered
+            )
             scores_to_use = collision_free_scores
-            
+
             for j, grasp in enumerate(grasps_to_visualize):
                 color = scores_to_use[j] if not args.filter_collisions else [0, 185, 0]
 
@@ -261,10 +282,12 @@ if __name__ == "__main__":
                     gripper_name=gripper_name,
                     linewidth=1.5,
                 )
-            
+
             # Visualize colliding grasps in red if collision filtering is enabled
             if args.filter_collisions and colliding_grasps is not None:
-                for j, grasp in enumerate(colliding_grasps[:20]):  # Limit to first 20 for clarity
+                for j, grasp in enumerate(
+                    colliding_grasps[:20]
+                ):  # Limit to first 20 for clarity
                     visualize_grasp(
                         vis,
                         f"colliding/{j:03d}/grasp",
@@ -273,19 +296,20 @@ if __name__ == "__main__":
                         gripper_name=gripper_name,
                         linewidth=0.4,
                     )
-                    
-                if len(colliding_grasps) > 0:
-                    print(f"Showing {min(20, len(colliding_grasps))} colliding grasps in red")
 
+                if len(colliding_grasps) > 0:
+                    print(
+                        f"Showing {min(20, len(colliding_grasps))} colliding grasps in red"
+                    )
 
             # # NOTE: Purely for debugging purposes. Steps through each grasp and visualizes the gripper collision mesh at the grasp location.
             # # Visualize gripper collision mesh at grasp locations
             # if args.filter_collisions and gripper_collision_mesh is not None:
             #     print("\nStarting gripper collision mesh visualization...")
-                
+
             #     # Combine all grasps with their colors and labels
             #     all_debug_grasps = []
-                
+
             #     # Add collision-free grasps (green)
             #     for i, grasp in enumerate(collision_free_grasps):
             #         all_debug_grasps.append({
@@ -297,8 +321,8 @@ if __name__ == "__main__":
 
             #         if i > 5:
             #             break
-                
-            #     # Add colliding grasps (red)  
+
+            #     # Add colliding grasps (red)
             #     if colliding_grasps is not None:
             #         for i, grasp in enumerate(colliding_grasps):
             #             all_debug_grasps.append({
@@ -311,7 +335,7 @@ if __name__ == "__main__":
             #                 break
 
             #     print(f"Total grasps to visualize: {len(all_debug_grasps)}")
-                
+
             #     # Step through each grasp with tqdm progress bar
             #     for grasp_info in tqdm(all_debug_grasps, desc="Visualizing gripper meshes"):
             #         # Clear previous gripper mesh (if it exists)
@@ -319,7 +343,7 @@ if __name__ == "__main__":
             #             vis["gripper_mesh"].delete()
             #         except:
             #             pass  # Gripper mesh doesn't exist yet
-                    
+
             #         # Visualize gripper mesh at grasp pose using transform parameter
             #         visualize_mesh(
             #             vis,
@@ -328,10 +352,10 @@ if __name__ == "__main__":
             #             color=grasp_info['color'],
             #             transform=grasp_info['pose']
             #         )
-                    
+
             #         print(f"\nShowing {grasp_info['type']} grasp: {grasp_info['label']}")
             #         user_input = input("Press Enter for next grasp, 'q' to quit gripper visualization, 's' to skip to next scene: ")
-                    
+
             #         if user_input.lower() == 'q':
             #             try:
             #                 vis["gripper_mesh"].delete()
@@ -344,7 +368,7 @@ if __name__ == "__main__":
             #             except:
             #                 pass
             #             break
-                
+
             #     # Clean up gripper mesh
             #     try:
             #         vis["gripper_mesh"].delete()
