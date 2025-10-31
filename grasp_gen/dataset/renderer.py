@@ -13,7 +13,6 @@ import time
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
-import pyrender
 import torch
 import trimesh
 import trimesh.transformations as tra
@@ -31,6 +30,28 @@ from grasp_gen.utils.meshcat_utils import (
 from grasp_gen.utils.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Try to import pyrender - it requires OpenGL/display which may not be available in headless environments
+try:
+    import pyrender
+    RENDERING_AVAILABLE = True
+except ImportError as e:
+    logger.warning(
+        f"Pyrender import failed: {e}. "
+        "Rendering features are disabled. This is expected in headless environments. "
+        "For inference-only usage, ensure mesh_mode=True is used."
+    )
+    pyrender = None
+    RENDERING_AVAILABLE = False
+except Exception as e:
+    # Catch other errors like missing GLU library, display initialization, etc.
+    logger.warning(
+        f"Pyrender initialization failed: {e}. "
+        "Rendering features are disabled. This is expected in headless/no-display environments. "
+        "For inference-only usage, ensure mesh_mode=True is used."
+    )
+    pyrender = None
+    RENDERING_AVAILABLE = False
 
 NOISE_PARAMS = {
     "kin_noi": {"std_range": [0.25, 0.75], "thresh_range": [100, 1000]},
@@ -194,6 +215,12 @@ def sample_camera_pose(
 
 class Renderer:
     def __init__(self):
+        if not RENDERING_AVAILABLE:
+            raise RuntimeError(
+                "Rendering is not available in this environment. "
+                "Pyrender requires OpenGL/GLU libraries and a display or EGL/OSMesa backend. "
+                "For inference-only usage, use mesh_mode=True to avoid rendering."
+            )
         self._scene = pyrender.Scene()
         self._node_dict = {}
         self._camera_intr = None
@@ -537,6 +564,12 @@ def render_point_cloud_from_object(
     num_points: int,
     prob_object_only: float = 0.75,
 ) -> Tuple[Union[np.array, None], DataLoaderError]:
+    if not RENDERING_AVAILABLE:
+        raise RuntimeError(
+            "Rendering is not available in this environment. "
+            "Pyrender requires OpenGL/GLU libraries and a display or EGL/OSMesa backend. "
+            "For inference-only usage, use mesh_mode=True to avoid rendering."
+        )
 
     object_only = np.random.random() < prob_object_only
     scene_info = []

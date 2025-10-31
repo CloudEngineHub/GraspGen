@@ -47,7 +47,7 @@ from grasp_gen.dataset.dataset_utils import (
 )
 from grasp_gen.dataset.eval_utils import check_collision
 from grasp_gen.dataset.exceptions import DataLoaderError
-from grasp_gen.dataset.renderer import render_pc
+# NOTE: render_pc is imported lazily where needed to avoid forcing pyrender import in headless environments
 from grasp_gen.dataset.visualize_utils import (
     MAPPING_ID2NAME,
     MAPPING_NAME2ID,
@@ -686,6 +686,9 @@ class PickDataset(Dataset):
                 )
                 load_contact_batch = self.load_contact
 
+                # Lazy import to avoid forcing pyrender in headless environments
+                from grasp_gen.dataset.renderer import render_pc
+
                 outputs, error_code = render_pc(
                     object_grasp_data,
                     self.num_points * POINT_CLOUD_REDUNDANCY,
@@ -825,6 +828,8 @@ class ObjectPickDataset(PickDataset):
         Returns:
             float: Kappa - Mean grasp extent K across all objects
         """
+        from copy import deepcopy as copy
+
         list_minmax = []
         for j in range(self.__len__()):
             key = self.scenes[j]
@@ -900,6 +905,9 @@ class ObjectPickDataset(PickDataset):
 
             mesh_mode = False if np.random.random() <= self.prob_point_cloud else True
             load_contact_batch = self.load_contact
+
+            # Lazy import to avoid forcing pyrender in headless environments
+            from grasp_gen.dataset.renderer import render_pc
 
             outputs, error_code = render_pc(
                 object_grasp_data, self.num_points, mesh_mode=mesh_mode
