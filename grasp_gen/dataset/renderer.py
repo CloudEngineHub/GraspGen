@@ -34,6 +34,7 @@ logger = get_logger(__name__)
 # Try to import pyrender - it requires OpenGL/display which may not be available in headless environments
 try:
     import pyrender
+
     RENDERING_AVAILABLE = True
 except ImportError as e:
     logger.warning(

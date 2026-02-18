@@ -47,6 +47,7 @@ from grasp_gen.dataset.dataset_utils import (
 )
 from grasp_gen.dataset.eval_utils import check_collision
 from grasp_gen.dataset.exceptions import DataLoaderError
+
 # NOTE: render_pc is imported lazily where needed to avoid forcing pyrender import in headless environments
 from grasp_gen.dataset.visualize_utils import (
     MAPPING_ID2NAME,

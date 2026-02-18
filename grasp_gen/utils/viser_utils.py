@@ -67,10 +67,10 @@ def rgb2hex(rgb: Tuple[int, int, int]) -> str:
 def _matrix_to_wxyz_position(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Convert a 4x4 homogeneous transformation matrix to wxyz quaternion and position.
-    
+
     Args:
         T: 4x4 homogeneous transformation matrix
-        
+
     Returns:
         Tuple of (wxyz quaternion, position)
     """
@@ -78,27 +78,25 @@ def _matrix_to_wxyz_position(T: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     rotation_matrix = T[:3, :3]
     so3 = vtf.SO3.from_matrix(rotation_matrix)
     wxyz = so3.wxyz
-    
+
     # Extract translation
     position = T[:3, 3]
-    
+
     return wxyz, position
 
 
 def create_visualizer(clear=True, port: int = 8080):
     """
     Create a viser server for visualization.
-    
+
     Args:
         clear: If True, clear existing scene content
         port: Port number for the viser server (default: 8080)
-        
+
     Returns:
         viser.ViserServer instance
     """
-    logger.info(
-        f"Starting viser server on http://localhost:{port}"
-    )
+    logger.info(f"Starting viser server on http://localhost:{port}")
     server = viser.ViserServer(port=port)
     if clear:
         server.scene.reset()
@@ -125,17 +123,17 @@ def make_frame(
     """
     if vis is None:
         return
-    
+
     # Default identity transform
     wxyz = (1.0, 0.0, 0.0, 0.0)
     position = (0.0, 0.0, 0.0)
-    
+
     if T is not None:
         is_valid = is_rotation_matrix(T[:3, :3])
         if not is_valid:
             raise ValueError("viser_utils: attempted to visualize invalid transform T")
         wxyz, position = _matrix_to_wxyz_position(T)
-    
+
     vis.scene.add_frame(
         name,
         show_axes=True,
@@ -159,19 +157,19 @@ def visualize_mesh(
 
     if color is None:
         color = np.random.randint(low=0, high=256, size=3).tolist()
-    
+
     # Ensure color is a tuple of ints
     if isinstance(color, np.ndarray):
         color = color.tolist()
     color_tuple = tuple(int(c) for c in color[:3])
-    
+
     # Default identity transform
     wxyz = (1.0, 0.0, 0.0, 0.0)
     position = (0.0, 0.0, 0.0)
-    
+
     if transform is not None:
         wxyz, position = _matrix_to_wxyz_position(transform)
-    
+
     vis.scene.add_mesh_simple(
         name,
         vertices=mesh.vertices.astype(np.float32),
@@ -201,23 +199,23 @@ def visualize_bbox(
     """
     if vis is None:
         return
-    
+
     # Ensure color is a tuple of ints
     if isinstance(color, np.ndarray):
         color = color.tolist()
     color_tuple = tuple(int(c) for c in color[:3])
-    
+
     # Default identity transform
     wxyz = (1.0, 0.0, 0.0, 0.0)
     position = (0.0, 0.0, 0.0)
-    
+
     if T is not None:
         wxyz, position = _matrix_to_wxyz_position(T)
-    
+
     # Convert dims to tuple
     if isinstance(dims, np.ndarray):
         dims = tuple(float(d) for d in dims)
-    
+
     vis.scene.add_box(
         name,
         color=color_tuple,
@@ -250,22 +248,22 @@ def visualize_pointcloud(
         return
     if pc.ndim == 3:
         pc = pc.reshape(-1, pc.shape[-1])
-    
+
     # Ensure pc is (N, 3)
     if pc.shape[-1] != 3:
         pc = pc[:, :3]
-    
+
     num_points = pc.shape[0]
 
     if color is not None:
         if isinstance(color, list):
             color = np.array(color)
         color = np.array(color)
-        
+
         # Resize the color np array if needed.
         if color.ndim == 3:
             color = color.reshape(-1, color.shape[-1])
-        
+
         if color.ndim == 1:
             # Single color for all points - broadcast to (N, 3)
             single_color = np.array(color).flatten()[:3]
@@ -283,7 +281,7 @@ def visualize_pointcloud(
                     # Pad with the last color
                     padding = np.tile(color[-1:], (num_points - color.shape[0], 1))
                     color = np.vstack([color, padding])
-        
+
         # Ensure color is uint8 in range [0, 255]
         color = color.astype(np.float32)
         if color.size > 0 and color.max() <= 1.0:
@@ -292,14 +290,17 @@ def visualize_pointcloud(
             color = np.clip(color, 0, 255).astype(np.uint8)
     else:
         color = np.full((num_points, 3), 255, dtype=np.uint8)
-    
+
     # Final shape check
-    assert color.shape == (num_points, 3), f"Color shape {color.shape} doesn't match expected ({num_points}, 3)"
-    
+    assert color.shape == (
+        num_points,
+        3,
+    ), f"Color shape {color.shape} doesn't match expected ({num_points}, 3)"
+
     # Default identity transform
     wxyz = (1.0, 0.0, 0.0, 0.0)
     position = (0.0, 0.0, 0.0)
-    
+
     if transform is not None:
         wxyz, position = _matrix_to_wxyz_position(transform)
 
@@ -344,7 +345,7 @@ def visualize_grasp(
 ):
     """
     Visualize a grasp using line segments in viser.
-    
+
     Args:
         vis: viser server object
         name: str, name for this grasp visualization
@@ -355,34 +356,34 @@ def visualize_grasp(
     """
     if vis is None:
         return
-    
+
     grasp_vertices = load_visualization_gripper_points(gripper_name)
-    
+
     # Ensure color is a tuple of ints
     if isinstance(color, np.ndarray):
         color = color.tolist()
     color_tuple = tuple(int(c) for c in color[:3])
-    
+
     # Get transform as wxyz and position
     wxyz, position = _matrix_to_wxyz_position(transform.astype(float))
-    
+
     for i, grasp_vertex in enumerate(grasp_vertices):
         # grasp_vertex is shape [4, N] where N is number of points
         # We need to create line segments from consecutive points
         points_3d = grasp_vertex[:3, :].T  # Shape: [N, 3]
-        
+
         # Create line segments from consecutive points
         # Each segment connects point[i] to point[i+1]
         num_points = points_3d.shape[0]
         if num_points < 2:
             continue
-            
+
         # Create segments array of shape [N-1, 2, 3]
         segments = np.zeros((num_points - 1, 2, 3), dtype=np.float32)
         for j in range(num_points - 1):
             segments[j, 0, :] = points_3d[j]
             segments[j, 1, :] = points_3d[j + 1]
-        
+
         vis.scene.add_line_segments(
             f"{name}/{i}",
             points=segments,
@@ -410,4 +411,3 @@ def get_normals_from_mesh(
     normals = normals_codebook[idx2]
     mask = matched[:, 0]
     return normals, contact_pts[mask], mask
-
