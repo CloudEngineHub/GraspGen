@@ -19,7 +19,7 @@ import trimesh.transformations as tra
 from tqdm import tqdm
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
-from grasp_gen.utils.meshcat_utils import (
+from grasp_gen.utils.viser_utils import (
     create_visualizer,
     get_color_from_score,
     get_normals_from_mesh,
@@ -153,7 +153,7 @@ if __name__ == "__main__":
 
     for json_file in json_files:
         print(json_file)
-        vis.delete()
+        vis.scene.reset()
 
         data = json.load(open(json_file, "rb"))
 

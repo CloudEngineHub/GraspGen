@@ -64,6 +64,7 @@ dependencies = [
     "scene-synthesizer[recommend]",
     "imageio",
     "pytest",
+    "viser",
     
     # Pin setuptools to a version that still includes pkg_resources
     # (required by torch==2.1.0 cpp_extension for building CUDA extensions like pointnet2_ops)

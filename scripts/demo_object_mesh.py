@@ -15,7 +15,7 @@ import trimesh.transformations as tra
 from pathlib import Path
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
-from grasp_gen.utils.meshcat_utils import (
+from grasp_gen.utils.viser_utils import (
     create_visualizer,
     get_color_from_score,
     get_normals_from_mesh,
