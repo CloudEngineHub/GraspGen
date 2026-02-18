@@ -59,6 +59,8 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 
 ## Release News
 
+- \[02/18/2026\] Paper accepted to ICRA'26, see you in Vienna 🚀🇦🇹
+
 - \[10/28/2025\] Add feature of filtering out colliding grasps based on scene point cloud.
 
 - \[09/30/2025\] Isaac-Lab based grasp data generation released as [GraspDataGen](https://github.com/NVlabs/GraspDataGen) package (Note: [Data gen for suction grippers is in this repo](grasp_gen/dataset/suction.py))
@@ -79,7 +81,7 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 - PTV3 backbone does not (yet) run on Cuda 12.8 due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved.
 
 ## Installation
-Choose your preferred installation method. For training, we recommend Docker. For inference, **uv** is the fastest and easiest option.
+Choose your preferred installation method. For training, we recommend **docker**. For inference, **uv** is the fastest and easiest option.
 
 **✅ All methods fully tested and working!**
 
@@ -112,16 +114,14 @@ git clone https://github.com/NVlabs/GraspGen.git && cd GraspGen && pip install -
 ./install_pointnet.sh
 ```
 
-**NOTE:** The `install_pointnet.sh` script automatically handles CUDA environment variables. Ensure you have CUDA runtime headers and a C++ compiler installed.
-
-**Alternative manual installation:** If you prefer to set environment variables manually:
+**NOTE:** The `install_pointnet.sh` script automatically handles CUDA environment variables. Ensure you have CUDA runtime headers and a C++ compiler installed. You can also manually run it as follows:
 ```bash
-export CC=/usr/bin/g++ && export CXX=/usr/bin/g++ && export CUDAHOSTCXX=/usr/bin/g++ && export TORCH_CUDA_ARCH_LIST="8.6" && cd pointnet2_ops && uv pip install --no-build-isolation .
+export CC=/usr/bin/g++ && export CXX=/usr/bin/g++ && export CUDAHOSTCXX=/usr/bin/g++ && export TORCH_CUDA_ARCH_LIST="8.6" && cd pointnet2_ops && pip install --no-build-isolation .
 ```
 
 
 ### Installation with uv 🚀
-This is recommended if you would just like to run inference.
+uv installation is recommended if you would just like to run inference.
 
 **[Optional]** Install uv if not already installed:
 ```bash
@@ -139,7 +139,7 @@ uv python install 3.10 && uv venv --python 3.10 .venv && source .venv/bin/activa
 uv pip install -e .
 
 # Install PointNet dependency (automated script handles CUDA environment)
-./install_pointnet.sh
+./install_uv_pointnet.sh
 ```
 
 To check if installation has succeeded, run the following test:

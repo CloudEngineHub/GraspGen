@@ -16,6 +16,6 @@ echo "✅ CUDA environment configured"
 echo "📦 Installing pointnet2_ops..."
 
 # Navigate to pointnet2_ops directory and install
-cd pointnet2_ops && pip install --no-build-isolation .
+cd pointnet2_ops && uv pip install --no-build-isolation .
 
 echo "🎉 pointnet2_ops installation completed successfully!"
