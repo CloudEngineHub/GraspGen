@@ -1,0 +1,116 @@
+[build-system]
+requires = ["setuptools>=45,<78", "wheel", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "grasp_gen"
+version = "1.0.0"
+description = "GraspGen: A Diffusion-based Framework for 6-DOF Grasping"
+authors = [
+    {name = "Adithya Murali", email = "admurali@nvidia.com"},
+]
+maintainers = [
+    {name = "Adithya Murali", email = "admurali@nvidia.com"},
+]
+license = {text = "NVIDIA Corporation"}
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["robotics", "manipulation", "learning", "computer-vision", "grasping"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Natural Language :: English",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    # Core PyTorch dependencies with CUDA support
+    "torch==2.1.0",
+    "torchvision==0.16.0", 
+    
+    # PyTorch Geometric dependencies (installed from PyG wheel index)  
+    "torch-cluster",
+    "torch-scatter", 
+    "torch-geometric",
+    
+    # Core dependencies from requirements.txt
+    "pickle5",
+    "h5py",
+    "hydra-core", 
+    "matplotlib",
+    "meshcat",
+    "numpy==1.26.4",
+    "webdataset",
+    "scikit-learn",
+    "scipy",
+    "tensorboard",
+    "trimesh==4.5.3",
+    "transformers",
+    "tensordict",
+    "diffusers==0.11.1",
+    "timm==1.0.15",
+    "huggingface-hub==0.25.2",
+    "PyOpenGL==3.1.0",
+    "addict",
+    "spconv-cu120",
+    "yapf==0.40.1",
+    "tensorboardx", 
+    "sharedarray",
+    "yourdfpy==0.0.56",
+    
+    # Additional dependencies from pip installation
+    "pyrender",
+    "scene-synthesizer[recommend]",
+    "imageio",
+    "pytest",
+    
+    # Pin setuptools to a version that still includes pkg_resources
+    # (required by torch==2.1.0 cpp_extension for building CUDA extensions like pointnet2_ops)
+    "setuptools>=45,<78",
+]
+
+# Note: pointnet2_ops is a local dependency that must be installed separately.
+# For seamless installation, use: ./install_pointnet.sh
+# Or manually: cd pointnet2_ops && uv pip install --no-build-isolation .
+
+[project.urls]
+"Homepage" = "https://graspgen.github.io"
+"Repository" = "https://github.com/NVlabs/GraspGen"
+"Documentation" = "https://graspgen.github.io"
+"Paper" = "https://arxiv.org/abs/2507.13097"
+"Models" = "https://huggingface.co/adithyamurali/GraspGenModels"
+"Dataset" = "https://huggingface.co/datasets/nvidia/PhysicalAI-Robotics-GraspGen"
+
+[project.optional-dependencies]
+dev = [
+    "black",
+    "isort",
+    "flake8",
+]
+
+[tool.setuptools]
+packages = ["grasp_gen"]
+include-package-data = true
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json", "*.txt", "*.md"]
+
+[tool.black]
+line-length = 88
+target-version = ['py310']
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.uv]
+# Allow pre-release packages (needed for pyrender -> pyglet dependencies)
+prerelease = "allow"
+
+# Use find-links for PyG packages (flat HTML page, not a PEP 503 index)
+find-links = ["https://data.pyg.org/whl/torch-2.1.0+cu121.html"]
+
+# Build dependencies for packages that need special build requirements
+[tool.uv.extra-build-dependencies]
+sharedarray = ["setuptools>=45,<78"]

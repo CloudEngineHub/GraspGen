@@ -30,6 +30,9 @@
 
 GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generation that scales across diverse settings: 1) **embodiments** - with 3 distinct gripper types (industrial pinch gripper, suction) 2) **observability** - robustness to partial vs. complete 3D point clouds and 3) **complexity** - grasping single-object vs. clutter. We also introduce a novel and performant on-generator training recipe for the grasp discriminator, which scores and ranks the generated grasps. GraspGen outperforms prior methods in real and sim (SOTA performance on the FetchBench grasping benchmark, 17% improvement) while being performant (21X less memory) and realtime (20 Hz before TensorRT). We release the data generation, data formats as well as the training and inference infrastructure in this repo.
 
+## 🚀 Quick Start
+**For the fastest installation, jump to [uv Installation](#installation-with-uv)** - One command gets you running in minutes!
+
 **Key Results**
 
 
@@ -42,6 +45,7 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 3. [Installation](#installation)
    - [Docker Installation](#installation-with-docker)
    - [Pip Installation](#installation-with-pip)
+   - [uv Installation](#installation-with-uv)
 4. [Download Model Checkpoints](#download-checkpoints)
 5. [Inference Demos](#inference-demos)
 6. [Dataset](#dataset)
@@ -75,7 +79,14 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 - PTV3 backbone does not (yet) run on Cuda 12.8 due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved.
 
 ## Installation
-For training, we recommend the docker installation. Pip installation has only been tested for inference.
+Choose your preferred installation method. For training, we recommend Docker. For inference, **uv** is the fastest and easiest option.
+
+**✅ All methods fully tested and working!**
+
+| Method | Use Case | Complexity | Speed | 
+|--------|----------|------------|-------|
+| **Docker** | Training + Inference | ⭐⭐⭐ Recommended for training | Slow |
+| **Pip** and **uv** | Inference | ⭐ Recommended for inference | Fast |
 
 ### Installation with Docker
 ```bash
@@ -86,29 +97,56 @@ bash docker/build.sh # This will take a while
 ### Installation with pip inside Conda/Python virtualenv
 **[Optional]** If you do not already have a conda env, first create one:
 ```bash
-conda create -n GraspGen python=3.10 && conda activate GraspGen
+conda create -n GraspGen python=3.10 -y && conda activate GraspGen
 ```
 **[Optional]** If you do not already have pytorch installed:
 ```bash
-pip install torch==2.1.0 torchvision==0.16.0 torch-cluster -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
+pip install torch==2.1.0 torchvision==0.16.0 torch-cluster torch-scatter -f https://data.pyg.org/whl/torch-2.1.0+cu121.html
 ```
 Install with pip:
 ```bash
 # Clone repo and install
-git clone https://github.com/NVlabs/GraspGen.git
-cd GraspGen && pip install -e .
+git clone https://github.com/NVlabs/GraspGen.git && cd GraspGen && pip install -e .
 
-# Install PointNet dependency
-cd pointnet2_ops && pip install --no-build-isolation .
-
-# Install other dependencies
-pip install pyrender && pip install PyOpenGL==3.1.5 transformers tensordict pyrender diffusers==0.11.1 timm huggingface-hub==0.25.2 scene-synthesizer[recommend]
+# Install PointNet dependency (automated script handles CUDA environment)
+./install_pointnet.sh
 ```
 
-NOTE: When compiling `pointnet2_ops`, if you are facing issues such as finding CUDA runtime headers or missing C++ compiler, try to manually set the following before installing:
+**NOTE:** The `install_pointnet.sh` script automatically handles CUDA environment variables. Ensure you have CUDA runtime headers and a C++ compiler installed.
+
+**Alternative manual installation:** If you prefer to set environment variables manually:
 ```bash
-export CC=/usr/bin/g++ && export CXX=/usr/bin/g++ && export CUDAHOSTCXX=/usr/bin/g++ && export TORCH_CUDA_ARCH_LIST="8.6"
+export CC=/usr/bin/g++ && export CXX=/usr/bin/g++ && export CUDAHOSTCXX=/usr/bin/g++ && export TORCH_CUDA_ARCH_LIST="8.6" && cd pointnet2_ops && uv pip install --no-build-isolation .
 ```
+
+
+### Installation with uv 🚀
+This is recommended if you would just like to run inference.
+
+**[Optional]** Install uv if not already installed:
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source ~/.bashrc  # or restart terminal
+```
+
+**Cloning repo and installing:**
+```bash
+# Clone repo and setup everything
+git clone https://github.com/NVlabs/GraspGen.git && cd GraspGen
+
+# Create Python environment and install all dependencies
+uv python install 3.10 && uv venv --python 3.10 .venv && source .venv/bin/activate
+uv pip install -e .
+
+# Install PointNet dependency (automated script handles CUDA environment)
+./install_pointnet.sh
+```
+
+To check if installation has succeeded, run the following test:
+```bash
+python tests/test_inference_installation.py
+```
+
 ## Download Checkpoints
 
 The checkpoints can be downloaded from [HuggingFace](https://huggingface.co/adithyamurali/GraspGenModels):
@@ -295,12 +333,13 @@ For business inquiries, please submit the form [NVIDIA Research Licensing](https
 If you found this work to be useful, please considering citing:
 
 ```
-@article{murali2025graspgen,
-  title={GraspGen: A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training},
-  author={Murali, Adithyavairavan and Sundaralingam, Balakumar and Chao, Yu-Wei and Yamada, Jun and Yuan, Wentao and Carlson, Mark and Ramos, Fabio and Birchfield, Stan and Fox, Dieter and Eppner, Clemens},
-  journal={arXiv preprint arXiv:2507.13097},
-  url={https://arxiv.org/abs/2507.13097},
-  year={2025},
+@inproceedings{murali2025graspgen,
+  title     = {GraspGen: A Diffusion-based Framework for 6-DOF Grasping with On-Generator Training},
+  author    = {Murali, Adithyavairavan and Sundaralingam, Balakumar and Chao, Yu-Wei and Yamada, Jun and Yuan, Wentao and Carlson, Mark and Ramos, Fabio and Birchfield, Stan and Fox, Dieter and Eppner, Clemens},
+  booktitle = {Proceedings of the IEEE International Conference on Robotics and Automation (ICRA)},
+  year      = {2026},
+  publisher = {IEEE},
+  url       = {https://arxiv.org/abs/2507.13097}
 }
 ```
 
