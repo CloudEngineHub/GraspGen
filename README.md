@@ -30,12 +30,6 @@
 
 GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generation that scales across diverse settings: 1) **embodiments** - with 3 distinct gripper types (industrial pinch gripper, suction) 2) **observability** - robustness to partial vs. complete 3D point clouds and 3) **complexity** - grasping single-object vs. clutter. We also introduce a novel and performant on-generator training recipe for the grasp discriminator, which scores and ranks the generated grasps. GraspGen outperforms prior methods in real and sim (SOTA performance on the FetchBench grasping benchmark, 17% improvement) while being performant (21X less memory) and realtime (20 Hz before TensorRT). We release the data generation, data formats as well as the training and inference infrastructure in this repo.
 
-## 🚀 Quick Start
-**For the fastest installation, jump to [uv Installation](#installation-with-uv)** - One command gets you running in minutes!
-
-**Key Results**
-
-
 <img src="fig/radar.png" width="200" height="250" title="readme1"> <img src="fig/3.gif" width="350" height="250" title="readme2"> <img src="fig/2.gif" width="350" height="250" title="readme3"> <img src="fig/1_fast.gif" width="300" height="250" title="readme4">
 
 ## 💡 Contents
@@ -77,8 +71,7 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 - ~~Data generation repo for antipodal grippers based on [Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/index.html) (Note: [Data gen for suction grippers already released](grasp_gen/dataset/suction.py))~~
 - ~~Collision-filtering example~~
 - ~~Finetuning with real data**[Not planned anymore, lack of time]**~~
-- Infering grasp width based on raycasting
-- PTV3 backbone does not (yet) run on Cuda 12.8 due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved.
+- PTV3 backbone does not (yet) run on Cuda 12.8/Blackwell GPUs due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved.
 
 ## Installation
 Choose your preferred installation method. For training, we recommend **docker**. For inference, **uv** is the fastest and easiest option.
