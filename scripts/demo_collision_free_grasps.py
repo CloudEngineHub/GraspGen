@@ -19,6 +19,7 @@ from IPython import embed
 from tqdm import tqdm
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
+from grasp_gen.samplers import run_graspmoe
 from grasp_gen.utils.viser_utils import (
     create_visualizer,
     get_color_from_score,
@@ -95,6 +96,38 @@ def parse_args():
         default=-1,
         help="Number of top grasps to return when return_topk is True",
     )
+    # --- GraspMoE / OBB planner flags (mirrors scripts/demo_object_pc.py) ---
+    parser.add_argument(
+        "--planner",
+        type=str,
+        default="graspmoe",
+        choices=["diffusion", "graspmoe"],
+        help="Inference planner. 'graspmoe' (default) = diffusion union "
+        "OBB-swept candidates, all scored by the discriminator. "
+        "'diffusion' = GraspGen diffusion+discriminator only.",
+    )
+    parser.add_argument("--moe_num_yaws", type=int, default=36)
+    parser.add_argument(
+        "--moe_z_offsets_cm",
+        type=str,
+        default="-8,-6,-4,-2,0",
+        help="CSV of Z offsets in cm for the OBB sweep (relative to OBB top face)",
+    )
+    parser.add_argument("--moe_outlier_threshold", type=float, default=0.014)
+    parser.add_argument("--moe_outlier_k", type=int, default=20)
+    parser.add_argument(
+        "--moe_obb_mode", type=str, default="advanced", choices=["advanced", "pca"]
+    )
+    parser.add_argument(
+        "--moe_skip_obb_rule", type=str, default="auto", choices=["auto", "never"]
+    )
+    parser.add_argument(
+        "--moe_obb_density",
+        type=str,
+        default="sparse",
+        choices=["sparse", "dense", "dense-topandside"],
+    )
+    parser.add_argument("--moe_obb_position_spacing_cm", type=float, default=1.0)
     parser.add_argument(
         "--collision_threshold",
         type=float,
@@ -249,13 +282,52 @@ if __name__ == "__main__":
     # Initialize GraspGenSampler and run inference
     inference_start = time.time()
     grasp_sampler = GraspGenSampler(grasp_cfg)
-    grasps_inferred, grasp_conf_inferred = GraspGenSampler.run_inference(
-        pc_filtered,
-        grasp_sampler,
-        grasp_threshold=args.grasp_threshold,
-        num_grasps=args.num_grasps,
-        topk_num_grasps=args.topk_num_grasps,
-    )
+    if args.planner == "graspmoe":
+        moe = run_graspmoe(
+            pc_filtered,
+            grasp_sampler,
+            grasp_threshold=args.grasp_threshold,
+            num_grasps=args.num_grasps,
+            topk_num_grasps=args.topk_num_grasps,
+            num_yaws=args.moe_num_yaws,
+            z_offsets_cm=tuple(
+                float(z) for z in args.moe_z_offsets_cm.split(",") if z.strip()
+            ),
+            outlier_threshold=args.moe_outlier_threshold,
+            outlier_k=args.moe_outlier_k,
+            obb_mode=args.moe_obb_mode,
+            skip_obb_rule=args.moe_skip_obb_rule,
+            obb_density=args.moe_obb_density,
+            obb_position_spacing_m=args.moe_obb_position_spacing_cm / 100.0,
+        )
+        grasps_inferred = np.concatenate(
+            [moe["grasps_diff"], moe["grasps_obb"]], axis=0
+        ).astype(np.float32)
+        grasp_conf_inferred = np.concatenate(
+            [moe["scores_diff"], moe["scores_obb"]], axis=0
+        ).astype(np.float32)
+        print(
+            f"[graspmoe] diffusion={len(moe['grasps_diff'])}, "
+            f"OBB={len(moe['grasps_obb'])}, skipped_obb={moe['skipped_obb']}"
+        )
+    else:
+        grasps_t, conf_t = GraspGenSampler.run_inference(
+            pc_filtered,
+            grasp_sampler,
+            grasp_threshold=args.grasp_threshold,
+            num_grasps=args.num_grasps,
+            topk_num_grasps=args.topk_num_grasps,
+        )
+        grasps_inferred = (
+            grasps_t.cpu().numpy().astype(np.float32)
+            if len(grasps_t) > 0
+            else np.zeros((0, 4, 4), dtype=np.float32)
+        )
+        grasp_conf_inferred = (
+            conf_t.cpu().numpy().astype(np.float32)
+            if len(conf_t) > 0
+            else np.zeros((0,), dtype=np.float32)
+        )
 
     inference_time = time.time() - inference_start
     print(f"Grasp inference took: {inference_time:.2f} seconds")
@@ -264,9 +336,6 @@ if __name__ == "__main__":
         print("No grasps found from inference!")
         exit(1)
 
-    # Convert to numpy
-    grasp_conf_inferred = grasp_conf_inferred.cpu().numpy()
-    grasps_inferred = grasps_inferred.cpu().numpy()
     grasps_inferred[:, 3, 3] = 1
 
     print(

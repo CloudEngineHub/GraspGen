@@ -25,6 +25,42 @@ from grasp_gen.utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
+def score_grasps_with_discriminator(
+    model,
+    points_centered: torch.Tensor,
+    grasps_centered: torch.Tensor,
+) -> torch.Tensor:
+    """Run only the discriminator on a batch of object-centered grasps.
+
+    Shared by ``GraspGenSampler.sample`` (for ranking diffusion grasps) and by
+    the GraspMoE / OBB planner (for ranking OBB-swept candidates against the
+    same point cloud).
+
+    Args:
+        model: ``GraspGen`` model instance (must have ``grasp_discriminator``).
+        points_centered: (N, 3) point cloud centered at its own mean, on the
+            same device as ``model``.
+        grasps_centered: (M, 4, 4) grasp poses with translations already
+            decentered by the same ``obj_pcd_center`` used for ``points_centered``.
+
+    Returns:
+        (M,) float32 tensor of discriminator confidences in [0, 1].
+    """
+    color_zeros = torch.zeros_like(points_centered)
+    data = {
+        "task": "pick",
+        "points": points_centered,
+        "inputs": torch.cat([points_centered, color_zeros[:, :3]], dim=-1).float(),
+        "grasps": grasps_centered,
+        "grasp_key": "grasps",
+    }
+    data_batch = collate([data])
+    data_batch["grasp_key"] = "grasps"
+    with torch.inference_mode():
+        out, _, _ = model.grasp_discriminator.infer(data_batch)
+    return out["grasp_confidence"][0, :, 0].float()
+
+
 def load_grasp_cfg(gripper_config: str) -> omegaconf.DictConfig:
     """
     Loads the grasp configuration file and updates the checkpoint paths to be relative to the gripper config file.
@@ -163,6 +199,117 @@ class GraspGenSampler:
         grasps[:, 3, 3] = 1  # TODO: Fix this in grasp_gen.py later.
 
         return grasps, grasp_conf
+
+    @staticmethod
+    def run_inference_batch(
+        object_pcs: list,
+        grasp_sampler: "GraspGenSampler",
+        grasp_threshold: float = -1.0,
+        num_grasps: int = 200,
+        topk_num_grasps: int = -1,
+        remove_outliers: bool = True,
+    ) -> list:
+        """Batched :meth:`run_inference`: one diffusion + discriminator forward
+        pass over N object PCs. Equivalent to
+        ``[run_inference(pc, ...) for pc in object_pcs]`` but folds the
+        reverse-diffusion loop into a single batched call.
+
+        Each input PC is resampled (with replacement) to
+        ``grasp_sampler.cfg.data.num_points`` so that ``collate`` can stack them
+        (it uses ``torch.stack``). Per-object centers are tracked and added back
+        to the predicted grasps so every output is in the input world frame.
+
+        Only the ``diffusion-discriminator`` model is supported (m2t2 has no
+        batched path here).
+
+        Args:
+            object_pcs: list of N point clouds, each (Mi, 3) np.ndarray or
+                torch.Tensor in the same world frame.
+            grasp_threshold: per-object discriminator threshold; -1.0 keeps
+                everything then prunes by top-k.
+            num_grasps: diffusion samples per object.
+            topk_num_grasps: cap per object after thresholding; -1 means no
+                top-k cap unless ``grasp_threshold == -1.0`` (in which case it
+                defaults to 100, matching :meth:`run_inference`).
+            remove_outliers: run outlier removal per object before resampling.
+
+        Returns:
+            List of ``(grasps, grasp_conf)`` tuples, one per input PC, in input
+            order. Shapes: grasps (Ki, 4, 4), grasp_conf (Ki,) on the sampler's
+            device.
+        """
+        if len(object_pcs) == 0:
+            return []
+        if grasp_sampler.cfg.eval.model_name != "diffusion-discriminator":
+            raise NotImplementedError(
+                "run_inference_batch only supports the diffusion-discriminator "
+                f"model, got '{grasp_sampler.cfg.eval.model_name}'."
+            )
+        if grasp_threshold == -1.0 and topk_num_grasps == -1:
+            topk_num_grasps = 100
+
+        device = next(grasp_sampler.model.parameters()).device
+        target_n = int(grasp_sampler.cfg.data.num_points)
+
+        centers: list = []
+        data_items: list = []
+        for pc in object_pcs:
+            if isinstance(pc, np.ndarray):
+                pc_t = torch.from_numpy(pc).float()
+            else:
+                pc_t = pc.float()
+            if remove_outliers:
+                pc_t, _ = point_cloud_outlier_removal(pc_t)
+            # Resample with replacement to the training-time budget so all
+            # batch items have the same shape (collate uses torch.stack).
+            n = pc_t.shape[0]
+            if n != target_n:
+                idx = torch.randint(0, n, (target_n,))
+                pc_t = pc_t[idx]
+            pc_t = pc_t.to(device)
+            center = pc_t.mean(dim=0)
+            centers.append(center)
+            centered = pc_t - center[None]
+            color = torch.zeros_like(centered)
+
+            data = {}
+            data["task"] = "pick"
+            data["inputs"] = torch.cat([centered, color[:, :3]], dim=-1).float()
+            data["points"] = centered
+            data_items.append(data)
+
+        data_batch = collate(data_items)
+        data_batch["grasp_key"] = "grasps_pred"
+
+        # Set the diffusion sampler to produce num_grasps per object; the
+        # model's batched forward returns (N, num_grasps, 4, 4).
+        grasp_sampler.model.grasp_generator.num_grasps_per_object = num_grasps
+
+        with torch.inference_mode():
+            model_outputs, _, _ = grasp_sampler.model.infer(data_batch)
+
+        grasps_pred = model_outputs["grasps_pred"]  # (N, K, 4, 4)
+        grasp_conf = model_outputs["grasp_confidence"][..., 0]  # (N, K)
+
+        outputs: list = []
+        for i, center in enumerate(centers):
+            g_i = grasps_pred[i].to(device)
+            c_i = grasp_conf[i].to(device)
+            if grasp_threshold > 0.0:
+                keep = c_i >= grasp_threshold
+                g_i = g_i[keep]
+                c_i = c_i[keep]
+            if topk_num_grasps != -1 and len(g_i) > topk_num_grasps:
+                order = torch.argsort(c_i, descending=True)[:topk_num_grasps]
+                g_i = g_i[order]
+                c_i = c_i[order]
+            # Restore world frame.
+            if len(g_i) > 0:
+                g_i = g_i.clone()
+                g_i[:, :3, 3] = g_i[:, :3, 3] + center.to(g_i.device)
+                g_i[:, 3, 3] = 1.0
+            outputs.append((g_i, c_i))
+        return outputs
 
     @torch.inference_mode()
     def sample(

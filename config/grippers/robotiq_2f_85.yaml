@@ -19,3 +19,5 @@ contact_points:
   - link_name: right_inner_finger_pad_geometry_14
     location: [-4.61807407e-02,  3.67749690e-05,  1.30324000e-01]
     normal: [1., 0., 0.]
+width: 0.085   # jaw aperture (matches GraspGenX sweep_volume.extents[0]); used by OBB planner skip rule
+depth: 0.130324  # base-link to TCP Z; matches contact_points.location[2] (no .py module exists for this gripper)

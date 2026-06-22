@@ -15,6 +15,7 @@ import trimesh.transformations as tra
 from pathlib import Path
 
 from grasp_gen.grasp_server import GraspGenSampler, load_grasp_cfg
+from grasp_gen.samplers import run_graspmoe
 from grasp_gen.utils.viser_utils import (
     create_visualizer,
     get_color_from_score,
@@ -90,6 +91,47 @@ def parse_args():
         "--no-visualization",
         action="store_true",
         help="Disable meshcat visualization",
+    )
+
+    # --- GraspMoE / OBB planner flags ---
+    parser.add_argument(
+        "--planner",
+        type=str,
+        default="graspmoe",
+        choices=["diffusion", "graspmoe"],
+        help="Inference planner (default: graspmoe = diffusion union OBB-swept candidates).",
+    )
+    parser.add_argument("--moe_num_yaws", type=int, default=36)
+    parser.add_argument(
+        "--moe_z_offsets_cm",
+        type=str,
+        default="-8,-6,-4,-2,0",
+        help="CSV of Z offsets in cm for the OBB sweep",
+    )
+    parser.add_argument("--moe_outlier_threshold", type=float, default=0.014)
+    parser.add_argument("--moe_outlier_k", type=int, default=20)
+    parser.add_argument(
+        "--moe_obb_mode",
+        type=str,
+        default="advanced",
+        choices=["advanced", "pca"],
+    )
+    parser.add_argument(
+        "--moe_skip_obb_rule",
+        type=str,
+        default="auto",
+        choices=["auto", "never"],
+    )
+    parser.add_argument(
+        "--moe_obb_density",
+        type=str,
+        default="sparse",
+        choices=["sparse", "dense", "dense-topandside"],
+    )
+    parser.add_argument(
+        "--moe_obb_position_spacing_cm",
+        type=float,
+        default=1.0,
     )
 
     return parser.parse_args()
@@ -168,18 +210,55 @@ if __name__ == "__main__":
         visualize_pointcloud(vis, "pc", pc, pc_color, size=0.0025)
 
     # Run inference on point cloud
-    grasps_inferred, grasp_conf_inferred = GraspGenSampler.run_inference(
-        pc,
-        grasp_sampler,
-        grasp_threshold=args.grasp_threshold,
-        num_grasps=args.num_grasps,
-        topk_num_grasps=args.topk_num_grasps,
-        remove_outliers=False,
-    )
+    if args.planner == "graspmoe":
+        moe = run_graspmoe(
+            pc,
+            grasp_sampler,
+            grasp_threshold=args.grasp_threshold,
+            num_grasps=args.num_grasps,
+            topk_num_grasps=args.topk_num_grasps,
+            num_yaws=args.moe_num_yaws,
+            z_offsets_cm=tuple(
+                float(z) for z in args.moe_z_offsets_cm.split(",") if z.strip()
+            ),
+            outlier_threshold=args.moe_outlier_threshold,
+            outlier_k=args.moe_outlier_k,
+            obb_mode=args.moe_obb_mode,
+            skip_obb_rule=args.moe_skip_obb_rule,
+            obb_density=args.moe_obb_density,
+            obb_position_spacing_m=args.moe_obb_position_spacing_cm / 100.0,
+        )
+        grasps_inferred = np.concatenate(
+            [moe["grasps_diff"], moe["grasps_obb"]], axis=0
+        )
+        grasp_conf_inferred = np.concatenate(
+            [moe["scores_diff"], moe["scores_obb"]], axis=0
+        )
+        print(
+            f"[graspmoe] diffusion={len(moe['grasps_diff'])}, "
+            f"OBB={len(moe['grasps_obb'])}, skipped_obb={moe['skipped_obb']}"
+        )
+    else:
+        grasps_inferred_t, grasp_conf_inferred_t = GraspGenSampler.run_inference(
+            pc,
+            grasp_sampler,
+            grasp_threshold=args.grasp_threshold,
+            num_grasps=args.num_grasps,
+            topk_num_grasps=args.topk_num_grasps,
+            remove_outliers=False,
+        )
+        grasps_inferred = (
+            grasps_inferred_t.cpu().numpy()
+            if len(grasps_inferred_t) > 0
+            else np.zeros((0, 4, 4), dtype=np.float32)
+        )
+        grasp_conf_inferred = (
+            grasp_conf_inferred_t.cpu().numpy()
+            if len(grasp_conf_inferred_t) > 0
+            else np.zeros((0,), dtype=np.float32)
+        )
 
     if len(grasps_inferred) > 0:
-        grasp_conf_inferred = grasp_conf_inferred.cpu().numpy()
-        grasps_inferred = grasps_inferred.cpu().numpy()
         scores_inferred = get_color_from_score(grasp_conf_inferred, use_255_scale=True)
         print(
             f"Inferred {len(grasps_inferred)} grasps, with scores ranging from {grasp_conf_inferred.min():.3f} - {grasp_conf_inferred.max():.3f}"
@@ -213,3 +292,7 @@ if __name__ == "__main__":
 
     else:
         print("No grasps found from inference!")
+
+    # Keep the viser server alive so the user can browse the visualization.
+    if not args.no_visualization:
+        input("Press Enter to exit (closes the viser viewer)...")

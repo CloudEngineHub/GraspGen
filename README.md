@@ -30,6 +30,8 @@
 
 GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generation that scales across diverse settings: 1) **embodiments** - with 3 distinct gripper types (industrial pinch gripper, suction) 2) **observability** - robustness to partial vs. complete 3D point clouds and 3) **complexity** - grasping single-object vs. clutter. We also introduce a novel and performant on-generator training recipe for the grasp discriminator, which scores and ranks the generated grasps. GraspGen outperforms prior methods in real and sim (SOTA performance on the FetchBench grasping benchmark, 17% improvement) while being performant (21X less memory) and realtime (20 Hz before TensorRT). We release the data generation, data formats as well as the training and inference infrastructure in this repo.
 
+**NOTE:** This repo only supports 3 grippers (Franka-Panda, Robotiq-2f-140 and a suction cup). If you would like to run grasp generation for more grippers (e.g. DROID robots, robotiq-2f-85, etc,), please see our extension work [GraspGen-X](https://github.com/NVlabs/GraspGenX), which is a cross-embodiment foundation model for grasping.
+
 <img src="fig/radar.png" width="200" height="250" title="readme1"> <img src="fig/3.gif" width="350" height="250" title="readme2"> <img src="fig/2.gif" width="350" height="250" title="readme3"> <img src="fig/1_fast.gif" width="300" height="250" title="readme4">
 
 ## 💡 Contents
@@ -57,6 +59,10 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 
 ## Release News
 
+- \[06/21/2026\] Added Mixture-of-Experts. Top-Down and Side-grasps now supported.
+
+- \[06/21/2026\] Add VLA/policy data generation example.
+
 - \[03/03/2026\] Added MCP for calling GraspGen as a tool by an LLM. See [mcp/](mcp/).
 
 - \[03/03/2026\] ZMQ-based server added to run GraspGen without any installation in your application. See [client-server/](client-server/)
@@ -79,7 +85,7 @@ GraspGen is a modular framework for diffusion-based 6-DOF robotic grasp generati
 - ~~Data generation repo for antipodal grippers based on [Isaac Lab](https://isaac-sim.github.io/IsaacLab/main/index.html) (Note: [Data gen for suction grippers already released](grasp_gen/dataset/suction.py))~~
 - ~~Collision-filtering example~~
 - ~~Finetuning with real data**[Not planned anymore, lack of time]**~~
-- PTV3 backbone does not (yet) run on Cuda 12.8/Blackwell GPUs due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved.
+- ~~PTV3 backbone does not (yet) run on Cuda 12.8/Blackwell GPUs due to a [dependency issue](https://github.com/Pointcept/PointTransformerV3/issues/159). If using Cuda 12.8, please use PointNet++ backbone for now until its resolved. [A working PTv3 example has been added to GraspGenX](https://github.com/NVlabs/GraspGenX/blob/main/graspgenx/models/ptv3/ptv3_vanilla.py)~~ 
 
 ## Installation
 Choose your preferred installation method. For training, we recommend **docker**. For inference, **uv** is the fastest and easiest option. If you would like to run GraspGen as a standalone server (e.g. for tool-calling from an LLM agent or a remote robot client), see [client-server/README.md](client-server/README.md). We also added a MCP to call GraspGen with an LLM.
